@@ -55,78 +55,234 @@ class POP2Graph:
         return self.edges[v]
 
 
+# Greedy Coloring Algorithm
+# This algorithm assigns the smallest available color to each vertex in sequence,
+# ensuring no two adjacent vertices share the same color.
 def greedy_coloring(graph):
+    """
+    Perform graph coloring using a greedy algorithm.
+    
+    Args:
+        graph (Graph): The graph object.
+    
+    Returns:
+        list: A list representing the coloring of the graph.
+    """
+    # Initialize all vertices as uncolored (-1)
     result = [-1] * graph.V
+    # Track available colors for each vertex
     available = [False] * graph.V
+
+    # Assign the first color to the first vertex
     result[0] = 0
 
+    # Iterate through the remaining vertices
     for u in range(1, graph.V):
         for i in graph.graph[u]:
+            # Mark the color of the adjacent vertex as unavailable
             if result[i] != -1:
                 available[result[i]] = True
+
+        # Find the first available color
         color = next(c for c, is_used in enumerate(available) if not is_used)
         result[u] = color
+
+        # Reset the available colors for the next iteration
         available = [False] * graph.V
+
     return result
 
 
-def is_safe(graph, v, color, result):
-    for neighbor in graph.graph[v]:
-        if result[neighbor] == color:
-            return False
+# Backtracking Coloring Algorithm
+# This algorithm attempts to color the graph using a backtracking approach.
+# It ensures that no two adjacent vertices share the same color.
+def is_safe(graph, vertex, color, coloring):
+    """
+    Check if it's safe to assign the given color to the vertex.
+    
+    Args:
+        graph (Graph): The graph object.
+        vertex (int): The current vertex to check.
+        color (int): The color to assign.
+        coloring (list): The current coloring of the graph.
+    
+    Returns:
+        bool: True if the color can be safely assigned, False otherwise.
+    """
+    for neighbor in graph.graph[vertex]:
+        if coloring[neighbor] == color:
+            return False  # Conflict detected with a neighbor
     return True
 
-
-def backtrack_util(graph, v, result, m):
-    if v == graph.V:
+def backtrack_util(graph, vertex, coloring, max_colors):
+    """
+    Utility function for the backtracking algorithm.
+    
+    Args:
+        graph (Graph): The graph object.
+        vertex (int): The current vertex to color.
+        coloring (list): The current coloring of the graph.
+        max_colors (int): The maximum number of colors allowed.
+    
+    Returns:
+        bool: True if a valid coloring is found, False otherwise.
+    """
+    # Base case: All vertices are colored
+    if vertex == graph.V:
         return True
-    for color in range(m):
-        if is_safe(graph, v, color, result):
-            result[v] = color
-            if backtrack_util(graph, v + 1, result, m):
+
+    # Try assigning each color from 0 to max_colors - 1
+    for color in range(max_colors):
+        if is_safe(graph, vertex, color, coloring):
+            coloring[vertex] = color  # Assign the color
+            # Recursively attempt to color the next vertex
+            if backtrack_util(graph, vertex + 1, coloring, max_colors):
                 return True
-            result[v] = -1
-    return False
+            # Backtrack: Remove the color assignment
+            coloring[vertex] = -1
+
+    return False  # No valid coloring found for this vertex
+
+def backtracking_coloring(graph, max_colors):
+    """
+    Perform graph coloring using the backtracking algorithm.
+    
+    Args:
+        graph (Graph): The graph object.
+        max_colors (int): The maximum number of colors allowed.
+    
+    Returns:
+        list: A list representing the coloring of the graph, or False if no valid coloring exists.
+    """
+    # Initialize all vertices as uncolored (-1)
+    coloring = [-1] * graph.V
+
+    # Start the backtracking process
+    if not backtrack_util(graph, 0, coloring, max_colors):
+        return False  # No valid coloring found
+
+    return coloring  # Return the valid coloring
 
 
-def backtracking_coloring(graph, m):
-    result = [-1] * graph.V
-    if not backtrack_util(graph, 0, result, m):
-        return False
-    return result
-
-
+# DSATUR Coloring Algorithm
+# This algorithm prioritizes vertices with the highest saturation degree (number of differently colored neighbors),
+# breaking ties by selecting the vertex with the highest degree.
 def dsatur_coloring(graph):
-    result = [-1] * graph.V
+    """
+    Perform graph coloring using the DSATUR algorithm.
+
+    Args:
+        graph (Graph): The graph object.
+
+    Returns:
+        list: A list representing the coloring of the graph.
+    """
+    # Initialize all vertices as uncolored (-1)
+    coloring = [-1] * graph.V
+    # Tracks the number of differently colored neighbors for each vertex
     saturation = [0] * graph.V
+    # Calculate the degree (number of neighbors) for each vertex in the graph
     degrees = [len(graph.graph[i]) for i in range(graph.V)]
+
+    # Select the vertex with the highest degree to start
     vertex = max(range(graph.V), key=lambda x: degrees[x])
-    result[vertex] = 0
+    coloring[vertex] = 0  # Assign the first color to the starting vertex
 
+    # Iterate through the remaining vertices
     for _ in range(1, graph.V):
+        # Update the saturation degree of neighbors of the last colored vertex
         for neighbor in graph.graph[vertex]:
-            if result[neighbor] != -1:
+            if coloring[neighbor] == -1:  # Only update uncolored vertices
                 saturation[neighbor] += 1
-        vertex = max(range(graph.V), key=lambda x: (saturation[x], degrees[x]) if result[x] == -1 else (-1, -1))
-        used_colors = {result[n] for n in graph.graph[vertex] if result[n] != -1}
-        result[vertex] = next(c for c in range(graph.V) if c not in used_colors)
-    return result
+
+        # Select the next vertex to color based on saturation (higher priority) and degree (tie-breaker)
+        vertex = max(
+            range(graph.V),
+            key=lambda x: (saturation[x], degrees[x]) if coloring[x] == -1 else (-1, -1)  # Prioritize saturation, then degree
+        )
+
+        # Determine the smallest available color for the selected vertex
+        used_colors = {coloring[n] for n in graph.graph[vertex] if coloring[n] != -1}
+        coloring[vertex] = next(c for c in range(graph.V) if c not in used_colors)
+
+    return coloring
 
 
-def genetic_coloring(graph, population_size=100, generations=200):
+# Genetic Algorithm Coloring Algorithm
+# This algorithm uses a population-based approach to evolve solutions over generations.
+# It applies selection, crossover, and mutation to find a valid or near-optimal coloring.
+# Parameters:
+# - population_size (int): The size of the population. Default is 100.
+# - generations (int): The number of generations to evolve. Default is 200.
+# Verification:
+# - The algorithm checks if a solution is valid (no two adjacent vertices share the same color)
+#   using the `is_valid_solution` function before returning the result.
+def genetic_coloring(graph, population_size = 100, generations = 200):
+    """
+    Perform graph coloring using a genetic algorithm.
+
+    Args:
+        graph (Graph): The graph object.
+        population_size (int): The size of the population. Default is 100.
+        generations (int): The number of generations to evolve. Default is 200.
+
+    Returns:
+        list: A list representing the coloring of the graph.
+    """
     def fitness(solution):
-        return len(set(solution))
+        """
+        Calculate the fitness of a solution.
+
+        Args:
+            solution (list): A list representing the coloring of the graph.
+
+        Returns:
+            int: The fitness score of the solution.
+        """
+        unique_colors = len(set(solution))
+        penalty = 0
+        for vertex in range(graph.V):
+            for neighbor in graph.graph[vertex]:
+                if solution[vertex] == solution[neighbor]:  # Conflict detected
+                    penalty += 1
+        return unique_colors + penalty * graph.V  # Penalize conflicts heavily
+
+    def is_valid_solution(solution):
+        """
+        Check if a solution is valid (no two adjacent vertices share the same color).
+
+        Args:
+            solution (list): A list representing the coloring of the graph.
+
+        Returns:
+            bool: True if the solution is valid, False otherwise.
+        """
+        for vertex in range(graph.V):
+            for neighbor in graph.graph[vertex]:
+                if solution[vertex] == solution[neighbor]:
+                    return False
+        return True
 
     def mutate(solution):
+        """
+        Mutate a solution by randomly changing the color of a vertex.
+
+        Args:
+            solution (list): A list representing the coloring of the graph.
+        """
         index = random.randint(0, graph.V - 1)
         solution[index] = random.randint(0, graph.V - 1)
 
+    # Initialize the population with greedy solutions
     population = [greedy_coloring(graph) for _ in range(population_size)]
+
+    # Evolve the population over generations
     for _ in range(generations):
+        # Sort the population by fitness
         population.sort(key=fitness)
-        if fitness(population[0]) <= 3:
-            break
+        # Select the top half of the population for the next generation
         next_gen = population[:population_size // 2]
+        # Generate offspring through crossover and mutation
         while len(next_gen) < population_size:
             parent1, parent2 = random.sample(next_gen, 2)
             crossover_point = random.randint(1, graph.V - 2)
@@ -134,9 +290,17 @@ def genetic_coloring(graph, population_size=100, generations=200):
             mutate(child)
             next_gen.append(child)
         population = next_gen
+
+    # Return the best valid solution
+    for solution in population:
+        if is_valid_solution(solution):
+            return solution
+
+    # If no valid solution is found, return the best attempt
     return population[0]
 
 
+# POP2 Algorithm functions 
 def initial_coloring(graph, num_colors):
     coloring = {}
     for vertex in graph.vertices:
@@ -348,14 +512,16 @@ def pop2_algorithm(graph, max_iterations=1000, max_time=60, tabu_tenure=10, verb
 
     return best_coloring, best_num_colors
 
-
+# Adapter function to run POP2 algorithm with the same interface as other algorithms
 def pop2_coloring_adapter(graph):
+    # Convert the Graph object to a POP2Graph object
     pop2_graph = POP2Graph()
     for u in range(graph.V):
         for v in graph.graph[u]:
             if v > u:  # Avoid adding edges twice
                 pop2_graph.add_edge(u, v)
 
+    # Run the POP2 algorithm with a reasonable time limit
     best_coloring, best_num_colors = pop2_algorithm(
         pop2_graph,
         max_iterations=500,
@@ -363,12 +529,14 @@ def pop2_coloring_adapter(graph):
         tabu_tenure=10,
         verbose=False
     )
-
+    
+    # Convert POP2 coloring (dict) to the same format as other algorithms (list)
     result = [-1] * graph.V
     for v, color in best_coloring.items():
-        if v < graph.V:
-            result[v] = color - 1
+        if v < graph.V:    # Ensure vertex is within range
+            result[v] = color - 1    # POP2 uses 1-indexed colors, convert to 0-indexed
 
+    # Fill any uncolored vertices
     for i in range(graph.V):
         if result[i] == -1:
             result[i] = 0
@@ -415,20 +583,24 @@ if __name__ == "__main__":
     data_folder = "../data"
     results = []
 
+    # Check if data folder exists
     if not os.path.exists(data_folder):
         print(f"Data folder '{data_folder}' not found. Creating it...")
         os.makedirs(data_folder)
         print(f"Please place .col graph files in the '{data_folder}' directory.")
         sys.exit(1)
 
+    # Iterate through all files in the data folder
     for filename in os.listdir(data_folder):
         if filename.endswith(".col"):
             filepath = os.path.join(data_folder, filename)
             print(f"Processing file: {filename}")
 
+            # Read the graph from the file
             graph = read_graph_from_file(filepath)
             print(f"Graph loaded from {filename} with {graph.V} vertices")
 
+            # Add a header for the file
             results.append({
                 "Run": "Header",
                 "Algorithm": f"File: {filename}",
@@ -437,6 +609,8 @@ if __name__ == "__main__":
                 "Memory Usage (MiB)": ""
             })
 
+            # Perform runs for each algorithm sequentially
+            # For smaller graphs, we do 50 runs, for larger graphs fewer runs
             num_runs = 50 if graph.V < 500 else (20 if graph.V < 1000 else 5)
 
             print("Running Greedy Coloring...")
