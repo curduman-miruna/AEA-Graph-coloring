@@ -146,7 +146,7 @@ def analyze_performance(func, *args):
 
 if __name__ == "__main__":
 
-    filename = "../data/DSJC250.1.col"
+    filename = "../data/homer.col"
     print(f"Reading graph from file: {filename}")
     graph = read_graph_from_file(filename)
     print(f"Graph loaded with {graph.V} vertices")
